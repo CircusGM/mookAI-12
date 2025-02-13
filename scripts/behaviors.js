@@ -1,5 +1,15 @@
 // todo: This whole thing is getting overhauled. The list below is for brainstorming. Send me any ideas/requests you have!
 
+// TODO rename behavior.js to something more generic
+// Added debugLog function here since this doesn't import other files
+// Top-level debug utility function available within this module
+export function debugLog(...args) {
+	if (game.settings.get("mookAI", "enableDebugConsoleMessages")) {
+		console.log("mookAI | DEBUG: ", ...args);
+	}
+}
+
+
 // If you want me to remove your name from here, message me, and I'll do it :)
 export const MookTypes = Object.freeze ({
 	// Uses mele attacks first, attacks closest
@@ -36,10 +46,14 @@ export const MookTypes = Object.freeze ({
 
 export function getMookType (index_)
 {
-	if (index_ === 0)
+	if (index_ == "0")
 		return MookTypes.EAGER_BEAVER;
 
-	return MookTypes.SHIA_SURPRISE;
+	if (index_ == "1")
+		return MookTypes.SHIA_SURPRISE;
+
+	// Throw an error if the index is not valid
+	throw new Error("MookAI | Invalid mook type index: " + index_);
 }
 
 export class Target
@@ -71,7 +85,7 @@ export class Behaviors
 		{
 		case (MookTypes.EAGER_BEAVER):
 			return Behaviors.attackByDistance (mook_, targets_, false);
-		case (MookTypes.NELSON):
+		case (MookTypes.NERVOUS_NELSON):
 			return Behaviors.attackByCurrentHealth (mook_, targets_, false);
 		case (MookTypes.SHIA_SURPRISE):
 			return Behaviors.surprise (mook_, targets_);

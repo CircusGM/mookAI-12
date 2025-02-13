@@ -1,6 +1,7 @@
 import { Abort, Mook } from "./mook.js"
 import { MinkowskiParameter } from "../../lib-find-the-path/scripts/point.js";
 import { FTPUtility } from "../../lib-find-the-path/scripts/utility.js";
+import { debugLog } from "./behaviors.js";
 
 let mookAI;
 
@@ -13,14 +14,19 @@ export function initAI ()
 {
 	mookAI = new MookAI ();
 
+	const mod = game.modules.get("mookAI");
+	if (mod) {
+		mod.api = mookAI;
+	}
+
 	game.settings.register ("mookAI", "DistanceMetric", {
 		name: "Distance Metric",
-		hint: "Distance on a grid can be measured multiple ways. Manhattan treats adjacent tiles as one unit away and diagonals as two. Chebyshev treats adjacent and diagonal tiles as one unit away. Euclidean (not recommended) treats tiles as though they existed in actual space: the center-to-center distance to diagonal tiles is sqrt(2) units.",
+		hint: "Distance on a grid can be measured multiple ways. Manhattan treats adjacent tiles as one unit away and diagonals as two. Chebyshev treats adjacent and diagonal tiles as one unit away. PF2E uses the 1-2-1-2 diagonal movement rule.",
 		scope: "world",
 		config: true,
-		default: "Manhattan",
+		default: game.system.id === "pf2e" ? "PF2E" : "Chebyshev",
 		type: String,
-		choices: ["Chebyshev", "Euclidean", "Manhattan"],
+		choices: ["Chebyshev", "Euclidean", "Manhattan", "PF2E"],
 	});
 
 	game.settings.register ("mookAI", "MoveAnimationDelay", {
@@ -160,6 +166,56 @@ export function initAI ()
 		type: Number,
 	});
 
+	game.settings.register("mookAI", "SkipActionConfirmation", {
+		name: "Skip Action Confirmation",
+		hint: "If enabled, mooks will execute their actions without showing a confirmation dialog.",
+		scope: "world",
+		config: true,
+		default: false,
+		type: Boolean,
+	});
+
+	game.settings.register("mookAI", "AutoControlMooks", {
+		name: "Automatically Control Mooks",
+		hint: "If enabled, mookAI will automatically take control of mook turns without requiring the 'G' key press.",
+		scope: "world",
+		config: true,
+		default: false,
+		type: Boolean
+	});
+
+	game.settings.register("mookAI", "AutoControlLevel", {
+		name: "Auto-Control Level Limit",
+		hint: "Only automatically control mooks at or below this level. Set to 0 to control all levels.",
+		scope: "world",
+		config: true,
+		default: 0,
+		type: Number,
+		range: {
+			min: 0,
+			max: 20,
+			step: 1
+		}
+	});
+
+	game.settings.register("mookAI", "IgnoreSpellcasters", {
+		name: "Ignore Spellcasters",
+		hint: "If enabled, mookAI will not automatically control creatures that can cast spells.",
+		scope: "world",
+		config: true,
+		default: true,
+		type: Boolean
+	});
+
+	game.settings.register("mookAI", "enableDebugConsoleMessages", {
+		name: "Enable Debug Console Messages",
+		hint: "If enabled, MookAI will output detailed debug messages to the console.",
+		scope: "world",
+		config: true,
+		default: false,
+		type: Boolean
+	});
+
 	Hooks.on ("ready", () => {
 		try
 		{
@@ -180,6 +236,18 @@ export class MookAI
 	{
 		this._busy = true;
 		this._combats = new Map ();
+		this.systemModels = {};
+	}
+
+	/**
+	 * Registers a system-specific mook model.
+	 * @param {string} systemId - The target game system id (e.g., "pf2e").
+	 * @param {class} model - The class that implements the MookModel.
+	 * @param {class} settings - The class corresponding to the model settings for that system.
+	 */
+	registerSystemModel(systemId, model, settings) {
+		this.systemModels[systemId] = { model, settings };
+		console.log(`mookAI | Registered system model for ${systemId}`);
 	}
 
 	ready ()
@@ -198,19 +266,49 @@ export class MookAI
 			this.updateTokens (changes_);
 		});
 
+		// This seems undocumented? Maybe internal function
 		Hooks.on ("createCombatant", (combatant_, config_, id_) => {
-			this.addCombatant (id_, combatant_.data.tokenId);
+			try {
+			//this.addCombatant (id_, combatant_.token.id);
+			// using game.combat.id instead of id_ because id_ is not the combat id anymore???
+			this.addCombatant (game.combat.id, combatant_.token.id);
+			} catch (error) {
+				console.error("Error in createCombatant hook:", error);
+				console.error(error.stack);
+			}
 		});
 		Hooks.on ("deleteCombatant", (combatant_, config_, id_) => {
-			this.deleteCombatant (id_, combatant_.data.tokenId);
+			try {
+				this.deleteCombatant (id_, combatant_.tokenId);
+			} catch (error) {
+				console.error("Error in deleteCombatant hook:", error);
+				console.error(error.stack);
+			}
 		});
 		Hooks.on ("createCombat", (combat_, config_, id_) => {
-			this.combatStart (combat_);
+			try {
+				this.combatStart (combat_);
+			} catch (error) {
+				console.error("Error in createCombat hook:", error);
+				console.error(error.stack);
+			}
 		});
 		Hooks.on ("deleteCombat", (combat_, config_, id_) => {
-			this.combatEnd (combat_);
+			try {
+				this.combatEnd (combat_);
+			} catch (error) {
+				console.error("Error in deleteCombat hook:", error);
+				console.error(error.stack);
+			}
 		});
-		Hooks.on ("updateScene", (...args) => { this.handleSceneChange () });
+		Hooks.on ("updateScene", (...args) => { 
+			try {
+				this.handleSceneChange () 
+			} catch (error) {
+				console.error("Error in updateScene hook:", error);
+				console.error(error.stack);
+			}
+		});
 
 		document.addEventListener('keyup', evt => {
 			if (evt.key !== 'b' || ! evt.target.classList.contains ("game") || this.busy)
@@ -288,8 +386,15 @@ export class MookAI
 	
 	addCombatant (combatId_, id_)
 	{
+		debugLog("addCombatant hook triggered: combatId:", combatId_);
+		if (!this._combats.has(combatId_)) {
+			debugLog("Combat id not found in _combats Map – initializing:", combatId_);
+			this._combats.set(combatId_, new Map());
+		}
+
 		const mook = new Mook (canvas.tokens.get (id_), this.metric);
 		this.combats.get (combatId_).set (id_, mook);
+		debugLog("Completed addCombatant hook");
 		return mook;
 	}
 
@@ -301,6 +406,7 @@ export class MookAI
 	// Throws if there are no combats in the active scene
 	async startCombats ()
 	{
+		debugLog("startCombats hook triggered:");
 		game.combats.combats.forEach (c => { this.combatStart (c); });
 
 		if (this._combats.size === 0)
@@ -314,7 +420,8 @@ export class MookAI
 
 	combatStart (combat_)
 	{
-		if (combat_.data.scene !== game.scenes.active.id)
+		debugLog("combatStart called!");
+		if (combat_.scene !== game.scenes.active.id)
 			return;
 
 		if (this.combats.get (combat_.id))
@@ -326,12 +433,12 @@ export class MookAI
 		let newMooks = new Map ();
 
 		combat_.combatants.forEach (combatant => {
-			const newToken = canvas.tokens.get (combatant.data.tokenId);
+			const newToken = canvas.tokens.get (combatant.tokenId);
 
 			if (! newToken)
 			    return;
 
-			newMooks.set (combatant.data.tokenId, new Mook (newToken, this.metric));
+			newMooks.set (combatant.tokenId, new Mook (newToken, this.metric));
 		});
 
 		this._combats.set (combat_.id, newMooks);
@@ -360,6 +467,7 @@ export class MookAI
 
 	getCombat ()
 	{
+		debugLog("getCombat called. id: " + game.combat.id);
 		return this.combats.get (game.combat.id);
 	}
 
@@ -377,13 +485,53 @@ export class MookAI
 	async takeNextTurn ()
 	{
 		this.applySettings ();
-
+		debugLog("mookAI | take turn. Combats: " + this._combats.keys());
+		debugLog("mookAI | take turn. Combats: " + this._combats.size);
 		// Throws if there is not combat on the *active* scene
 		if (this._combats.size === 0)
 			await this.startCombats ();
+		debugLog("mookAI | take turn. >0 combats");
 
-		let success = await this.takeMookTurn (this.getMook (this.getCombat (), game.combat.current.tokenId));
-
+		// Step 1: Get the current combat
+		let combat;
+		try {
+			combat = this.getCombat();
+			debugLog("Retrieved combat", combat);
+		} catch (error) {
+			console.error("Failed to get combat", error);
+		}
+		
+		// Step 2: Get the current token ID
+		let tokenId;
+		try {
+			tokenId = game.combat.current.tokenId;
+			debugLog("Retrieved current token ID:", tokenId);
+		} catch (error) {
+			console.error("Error retrieving current token ID:", error);
+		}
+		
+		// Step 3: Get the Mook instance
+		let mook;
+		try {
+			mook = this.getMook(combat, tokenId);
+			debugLog("Retrieved Mook instance:", mook);
+		} catch (error) {
+			console.error("Error retrieving Mook instance:", error);
+		}
+		
+		// Step 4: Take the Mook's turn
+		let success = false;
+		if (mook) {
+			try {
+				success = await this.takeMookTurn(mook);
+				debugLog("Mook turn success status:", success);
+			} catch (error) {
+				console.error("Error during Mook turn:", error);
+			}
+		} else {
+			console.error("Mook instance undefined – cannot take turn");
+		}
+		
 		if (success)
 			this.endTurn ();
 	}
@@ -412,31 +560,61 @@ export class MookAI
 	
 			this._busy = true;
 	
-			await mook_.startTurn ();
-			await mook_.sense ();
-			mook_.planTurn ();
-			await mook_.act ();
-			await mook_.endTurn ();
+			debugLog("Starting mook turn...");
+			await mook_.startTurn();
+			debugLog("Completed startTurn");
+	
+			debugLog("Mook sensing...");
+			await mook_.sense();
+			debugLog("Completed sense");
+	
+			debugLog("Planning mook turn...");
+			mook_.planTurn();
+			debugLog("Completed planTurn");
+	
+			debugLog("Mook acting...");
+			await mook_.act();
+			debugLog("Completed act");
+	
+			debugLog("Ending mook turn...");
+			await mook_.endTurn();
+			debugLog("Completed endTurn");
 	
 			this._busy = false;
 			return true;
 		}
-		catch (e)
-		{
-			if (! (e instanceof Abort))
-			{
-				console.error ("mookAI | Encountered unrecoverable error:");
-				console.error (e);
+		catch (e) {
+			if (!(e instanceof Error)) {
+				e = new Error(e);
 			}
-			else
-			{
-				console.log ("mookAI | " + e);
-			}
+	
+			console.error("mookAI | Encountered unrecoverable error:");
+			console.error("Error message:", e.message);
+			console.error("Error name:", e.name);
+			console.error("Error stack trace:", e.stack);
 
-			if (mook_) await mook_.cleanup ();
+			if (!(e instanceof Abort)) {
+				console.error("mookAI | Encountered unrecoverable error:");
+				console.error("Error message:", e.message);
+				console.error("Error name:", e.name);
+				console.error("Error stack trace:", e.stack);
+			} else {
+				debugLog("mookAI | " + e.message);
+			}
+		
+			if (mook_) {
+				try {
+					await mook_.cleanup();
+				} catch (cleanupError) {
+					console.error("mookAI | Error during cleanup:", cleanupError.message);
+					console.error("Cleanup error stack trace:", cleanupError.stack);
+				}
+			}
+			
 			this._busy = false;
 			return false;
 		}
+		
 	}
 
 	applySettings ()
@@ -473,4 +651,121 @@ export class MookAI
 	get busy () { return this._busy; }
 
 	get combats () { return this._combats; }
+
 };
+
+Hooks.on("updateCombat", async (combat, changed, options, userId) => {
+	debugLog("updateCombat hook triggered");
+	
+	// Only proceed if we're the GM and there was a turn change
+	if (!game.user.isGM || !changed.hasOwnProperty("turn")) {
+		debugLog("Skipping - not GM or not turn change");
+		return;
+	}
+	
+	// Check if auto-control is enabled
+	if (!game.settings.get("mookAI", "AutoControlMooks")) {
+		debugLog("Debug: Auto-control is disabled");
+		return;
+	}
+
+	const currentCombatant = combat.combatant;
+	if (!currentCombatant) {
+		debugLog("Debug: No current combatant");
+		return;
+	}
+
+	const token = canvas.tokens.get(currentCombatant.tokenId);
+	if (!token) {
+		debugLog("Debug: Token not found");
+		return;
+	}
+
+	debugLog("Debug: Processing token", token.name);
+
+	// Skip if it's a player-owned token
+	if (token.actor.hasPlayerOwner) {
+		debugLog("Debug: Skipping player-owned token");
+		return;
+	}
+
+	// Check level restriction if applicable
+	const levelLimit = game.settings.get("mookAI", "AutoControlLevel");
+	if (levelLimit > 0) {
+		const creatureLevel = getCreatureLevel(token.actor);
+		debugLog("Debug: Checking level", creatureLevel, "against limit", levelLimit);
+		if (creatureLevel > levelLimit) {
+			debugLog("Debug: Skipping - creature level too high");
+			return;
+		}
+	}
+
+	// Check spellcaster restriction if applicable
+	if (game.settings.get("mookAI", "IgnoreSpellcasters")) {
+		if (isSpellcaster(token.actor)) {
+			debugLog("Debug: Skipping spellcaster");
+			return;
+		}
+	}
+
+	debugLog("Debug: Taking turn for", token.name);
+	// If we've made it here, automatically take the turn
+	await mookAI.takeNextTurn();
+});
+
+// Helper function to get creature level based on system
+function getCreatureLevel(actor) {
+	switch (game.system.id) {
+		case "dnd5e":
+			return actor.system.details.cr || 0;
+		case "pf2e":
+			return actor.system.details.level.value || 0;
+		default:
+			return 0;
+	}
+}
+
+// Helper function to check if actor is a spellcaster
+function isSpellcaster(actor) {
+	switch (game.system.id) {
+		case "dnd5e":
+			// Only consider it a spellcaster if it has spell slots or spells with uses
+			if (!actor.system.spells) {
+				return false;
+			}
+			
+			return Object.entries(actor.system.spells).some(([key, spellLevel]) => 
+				spellLevel.value > 0 || spellLevel.max > 0
+			);
+			
+		case "pf2e":
+			// First check if spellcasting exists
+			if (!actor.spellcasting) {
+				return false;
+			}
+
+			// Then check if contents exists
+			if (!actor.spellcasting.contents) {
+				return false;
+			}
+
+			// Look through each spellcasting entry
+			for (const entry of actor.spellcasting.contents) {
+				// Check if entry and its system data exist
+				if (!entry || !entry.system) {
+					continue;
+				}
+
+				// If we find a tradition, this is a spellcaster
+				if (entry.system.tradition) {
+					return true;
+				}
+			}
+
+			// If we got here, no valid spellcasting entries were found
+			return false;
+
+		default:
+			return false;
+	}
+}

@@ -3,6 +3,7 @@ import { ActionType, MookModel } from "./mookModel.js";
 import { PathManager } from "../../lib-find-the-path/scripts/pathManager.js";
 import { PointFactory, SquareNeighborAngles, AngleTypes } from "../../lib-find-the-path/scripts/point.js";
 import { FTPUtility } from "../../lib-find-the-path/scripts/utility.js";
+import { debugLog } from "./behaviors.js";
 
 export class Abort extends Error
 {
@@ -15,123 +16,205 @@ export class Abort extends Error
 };
 
 // Wrapper around FVTT token class
-export class Mook
-{
-	constructor (token_, metric_)
-	{
-		this._token = token_;
+export class Mook {
+    constructor(token_, metric_) {
+        debugLog("Debug 1: Entering Mook constructor");
 
-		if (! this._token)
-			throw new Abort(`Token with id ${token_.id} was not found`);
+        this._token = token_;
+        debugLog("Debug 2: Token assigned", this._token);
 
-		// Used to create Point objects
-		this._pointFactory = new PointFactory (metric_);
-		// Manages the mook's attempts at path planning
-		this._pathManager = new PathManager (metric_);
+        if (!this._token) {
+            debugLog("Debug 3: Token not found, throwing Abort");
+            throw new Abort(`Token with id ${token_.id} was not found`);
+        }
 
-		this._disabledRotation = false;
-		this._mookModel = MookModel.getMookModel (token_);
-		this._start = this._pointFactory.segmentFromToken (token_);
-		this._segment = this._start;
-		this._targetedTokens = new Array ();
-		this._visibleTargets = new Array ();
+        debugLog("Debug 4: Creating PointFactory");
+        this._pointFactory = new PointFactory(metric_);
+        debugLog("Debug 5: Creating PathManager");
+        this._pathManager = new PathManager(metric_);
+
+        this._disabledRotation = false;
+
+        debugLog("Debug 6: Getting MookModel");
+        this._mookModel = MookModel.getMookModel(token_);
+        debugLog("Debug 7: MookModel obtained", this._mookModel);
+
+        debugLog("Debug 8: Creating start segment from token");
+        this._start = this._pointFactory.segmentFromToken(token_);
+        this._segment = this._start;
+        debugLog("Debug 9: Start segment created", this._start);
+
+        debugLog("Debug 10: Initializing arrays");
+        this._targetedTokens = new Array();
+        this._visibleTargets = new Array();
+
+        debugLog("Debug 11: Setting time from mookModel");
 		// "time" represents how much a mook can do on their turn. Moving a tile costs 1 time unit by default.
 		// todo: replace with a generalized cross-system resource manager (?!)
-		this._time = this.mookModel.time;
+        this._time = this.mookModel.time;
+
 		// Array of Actions
-		this._plan = new Array ();
+        this._plan = new Array();
 
-		this._collisionConfig = { checkCollision: true, whitelist: new Array (token_) };
-		this._pathManagerConfig = { 
-			collision: this._collisionConfig,
-			priorityMeasure: null,
-			constrainVision: true
-		};
-		this.utility= new FTPUtility ({
-			token: token_,
-			collisionConfig: this._collisionConfig
-		});
+        debugLog("Debug 12: Setting collision and pathManager configurations");
+        this._collisionConfig = { checkCollision: true, whitelist: new Array(token_) };
+        this._pathManagerConfig = {
+            collision: this._collisionConfig,
+            priorityMeasure: null,
+            constrainVision: true
+        };
 
-		this.pcWarning = "<p style=\"color:red\">Warning: Token is owned by a player!</p>";
-		this.debug = false;
-	}
+        debugLog("Debug 13: Creating FTPUtility");
+        this.utility = new FTPUtility({
+            token: token_,
+            collisionConfig: this._collisionConfig
+        });
 
-	async startTurn ()
-	{
+        this.pcWarning = "<p style=\"color:red\">Warning: Token is owned by a player!</p>";
+
+        debugLog("Debug 14: Mook constructor finished");
+    }
+
+	async startTurn() {
+        debugLog("Debug 15: Entering startTurn");
 		// Need to take control in order to check token's vision
-		this.takeControl ();
-		this.mookModel.startTurn ();
+        this.takeControl();
+        this.mookModel.startTurn();
 
-		this._start = this._pointFactory.segmentFromToken (this.token);
-		this._segment = this._start;
+        debugLog("Debug 16: Updating start segment");
+        this._start = this._pointFactory.segmentFromToken(this.token);
+        this._segment = this._start;
 
-		this._isExplorer = this.isExplorer;
+        debugLog("Debug 17: Checking if mook is an explorer");
+        this._isExplorer = this.isExplorer;
 
-		this.time = this.mookModel.time;
-		this._visibleTargets.splice (0);
+        debugLog("Debug 18: Setting time");
+        this.time = this.mookModel.time;
+        this._visibleTargets.splice(0);
 
-		if (this.rotationDisabled)
-			await this.lockRotation ();
-	}
+        if (this.rotationDisabled) {
+            debugLog("Debug 19: Locking rotation");
+            await this.lockRotation();
+        }
+        debugLog("Debug 20: Exiting startTurn");
+    }
 
 	async sense ()
 	{
+		debugLog("Debug 21: starting sense");
+		debugLog("Debug 21a: Current visible targets:", this._visibleTargets);
 		this.pathManager.clearAll ();
 
 		this._visibleTargets = game.combat.combatants.filter (combatant => {
-			const id = combatant.data.tokenId;
+			const id = combatant.tokenId;
+			debugLog("Debug 21b: Checking combatant:", id);
+
 			// Even mooks won't target themselves on purpose
-			if (id === this.token.id) return false;
+			if (id === this.token.id) {
+				debugLog("Debug 21c: Skipping self");
+				return false;
+			}
 
 			const token = canvas.tokens.get (id);
+			debugLog("Debug 21d: Found token:", token);
 
 			// todo: add "factions" to allow targeting of npcs
-			if (! this.isPC (token)) return false;
+			if (! this.isPC (token)) {
+				debugLog("Debug 21e: Skipping non-PC token");
+				return false;
+			}
 			// This shouldn't be possible
-			if (! token.inCombat) return false;
+			if (! token.inCombat) {
+				debugLog("Debug 21f: Skipping token not in combat");
+				return false;
+			}
 			// Don't attack downed PCs
-			if (this.mookModel.getCurrentHealth (token) <= 0) return false;
+			if (this.mookModel.getCurrentHealth (token) <= 0) {
+				debugLog("Debug 21g: Skipping downed PC");
+				return false;
+			}
 			// If the mook doesn't have vision, then it can see everyone. This choice avoids many problems.
-			if (this.mookModel.hasVision && ! this.canSee (token.id)) return false;
+			if (this.mookModel.hasVision && ! this.canSee (token.id)) {
+				debugLog("Debug 21h: Cannot see token");
+				return false;
+			}
 
+			debugLog("Debug 21i: Valid target found:", token);
 			return true;
-		}).map (c => { return canvas.tokens.get (c.data.tokenId); });
+		}).map (c => { return canvas.tokens.get (c.tokenId); });
+
+		debugLog("Debug 21j: Final visible targets:", this._visibleTargets);
 
 		// Todo: compute paths between tokens when one moves and then select paths here. 
 		for (let t of this.visibleTargets)
+		{
+			debugLog("Debug 21k: Computing path to target:", t);
 			await this.pathManager.addToken (this.token, t, this.time, this.pathManagerConfig);
+		}
 	}
 
 	planTurn ()
 	{
+		debugLog("Debug 22: starting planTurn");
 		// Clear the previous plan
 		this.plan.splice (0);
 
+		debugLog("Debug 22a: Visible targets count:", this.visibleTargets.length);
 		if (this.visibleTargets.length === 0)
 		{
+			debugLog("Debug 22b: No visible targets found");
 			if (this.time < 1)
 			{
+				debugLog("Debug 22c: Insufficient time, halting");
 				this.plan.push (this.mookModel.haltAction ());
 				return;
 			}
 
-			this.plan.push ({ actionType: ActionType.EXPLORE });
-			this.plan.push (this.mookModel.senseAction ());
-			this.plan.push (this.mookModel.planAction ());
+			// Add debug logging for exploration settings
+			debugLog("Debug 22d: Planning exploration", {
+				isExploreDisabled: this.isExploreDisabled,
+				mookInitiative: this.mookModel.settings.mookInitiative,
+				isExplorer: this.isExplorer
+			});
+
+			// Only add EXPLORE action if exploration is enabled
+			if (!this.isExploreDisabled) {
+				this.plan.push({ actionType: ActionType.EXPLORE });
+				this.plan.push(this.mookModel.senseAction());
+				this.plan.push(this.mookModel.planAction());
+			} else {
+				debugLog("Debug 22e: Exploration is disabled, halting");
+				this.plan.push(this.mookModel.haltAction());
+			}
 			return;
 		}
 
 		const targets = this.viableTargets;
+		debugLog("Debug 22e: Viable targets:", targets);
 
-		if (targets === null)
-		{
-			/*
-			todo: move this into mook model.
-			If mook can see a target but can't reach the target, then it should zoom if able (and if zooming will get it in range? what about multi-zoom)
-			If mook cannot see target, but it is out of movement, it should zoom if able
-			*/
-			if (this.mookModel.canZoom)
-			{
+		if (targets === null && this.visibleTargets.length > 0) {
+			debugLog("Debug 22f: No viable targets found, but have visible targets");
+			
+			// Find closest visible target
+			const closestTarget = Behaviors.getSmallest(this.visibleTargets, t => {
+				return this.pathManager.path(this.token.id, t.id).cost;
+			});
+
+			if (closestTarget) {
+				debugLog("Debug 22g: Moving towards closest visible target:", closestTarget.name);
+				// Face the target
+				this.plan.push(this.mookModel.faceAction(closestTarget));
+				// Step towards them
+				this.plan.push(this.mookModel.stepAction());
+				// Sense and replan after movement
+				this.plan.push(this.mookModel.senseAction());
+				this.plan.push(this.mookModel.planAction());
+				return;
+			}
+
+			// Only fall back to exploration if we couldn't find a path to any visible target
+			if (this.mookModel.canZoom) {
+				debugLog("Debug 22h: Attempting to zoom");
 				const bonusTime = this.mookModel.zoom ();
 				this.time += bonusTime;
 
@@ -141,6 +224,7 @@ export class Mook
 			}
 
 			// If a mook can't find a target, they will explore to try to find one
+			debugLog("Debug 22i: Planning exploration due to no viable targets");
 			this.plan.push ({ actionType: ActionType.EXPLORE });
 			this.plan.push (this.mookModel.senseAction ());
 			this.plan.push (this.mookModel.planAction ());
@@ -149,6 +233,7 @@ export class Mook
 
 		// Of type Target
 		const target = Behaviors.chooseTarget(this, targets);
+		debugLog("Debug 22j: Chosen target:", target);
 
 		this.plan.push ({
 			actionType: ActionType.TARGET,
@@ -156,39 +241,63 @@ export class Mook
 		});
 
 		const path = this.pathManager.path (this.token.id, target.id);
+		debugLog("Debug 22k: Path to target:", path);
 
 		if (path.valid)
+		{
+			debugLog("Debug 22l: Valid path found, planning traverse");
+			// Get the sub-path that ends within the desired attack range
+			// This gets the actual Node object so that it has the distTraveled property
+			const subpath = path.path.filter(n => n.distToDest >= target.range);
+			// If no movement is needed, cost is 0; otherwise, 
+			// use the distTraveled of the *last* node for the actual PF2e cost.
+			let cost = path.within (target.range).length - 1;
+			if (subpath.length > 0) {
+			  cost = subpath[subpath.length - 1].distTraveled; 
+			}
 			this.plan.push ({
 				actionType: ActionType.TRAVERSE,
-				cost: path.within (target.range).length - 1,
+				cost: cost,
 				data: { "path": path, "dist": target.range }
 			});
+		}
 		else
+		{
+			debugLog("Debug 22m: No valid path found");
 			this.plan.push ({
 				actionType: ActionType.TRAVERSE,
 				cost: 0,
 				data: { "path": null, "dist": target.range }
 			});
+		}
 
+		debugLog("Debug 22n: Planning face action");
 		this.plan.push (this.mookModel.faceAction (target.token));
 
+		debugLog("Debug 22o: Planning attack action");
 		this.plan.push (target.attackAction);
 
+		debugLog("Debug 22p: Planning halt action");
 		this.plan.push (this.mookModel.haltAction ());
 	}
 
 	async act ()
 	{
-		if (this.debug) console.log ("Acting");
+		try {
+
+		
+		debugLog("Debug 23: starting act");
+		debugLog("Acting. Time: %f", this.time);
 
 		// todo: Setting to disable
-		await this.centerCamera ();
+		// TODO reable camera tracking
+		//await this.centerCamera ();
 
 		// todo: true timer
 		let tries = 100;
 		while (this.time >= 0 && --tries)
 		{
-			if (this.debug) console.log ("Try #%f", 100 - tries);
+			debugLog("Try #%f", 100 - tries);
 
 			if (this.plan.length === 0)
 			{
@@ -210,48 +319,51 @@ export class Mook
 
 			let action = this.plan.splice (0, 1)[0];
 
-			if (this.debug) console.log (action);
+			debugLog(action);
 
 			switch (action.actionType)
 			{
 			case (ActionType.HALT):
-				if (this.debug) console.log ("Halting");
+				debugLog("Halting");
 				this.cleanup ();
 				return;
 			case (ActionType.SENSE):
-				if (this.debug) console.log ("Sensing");
+				debugLog("Sensing");
 				await this.sense ();
 				break;
 			case (ActionType.PLAN):
-				if (this.debug) console.log ("Planning");
+				debugLog("Planning");
 				this.planTurn ();
 				break;
 			case (ActionType.ROTATE):
-				if (this.debug) console.log ("Rotating");
+				debugLog("Rotating");
 				await this.rotate (action.data);
 				break;
 			case (ActionType.FACE):
-				if (this.debug) console.log ("Rotating to face target");
+				debugLog("Rotating to face target");
 				await this.rotate (this.degreesToTarget (action.data));
 				break;
 			case (ActionType.MOVE):
-				if (this.debug)
-					console.log ("Moving from (%f, %f) to (%f, %f)",
-								this.point.x, this.point.y, action.data.x, action.data.y);
-				await this.move (action.data);
+				debugLog("Moving from (%f, %f) to (%f, %f)",
+						this.point.x, this.point.y, action.data.x, action.data.y);
+				const success = await this.move(action.data);
+				if (success) {
+					const tilesMoved = 1; // TODO calculate dist but this probably isn't used anywhere. 
+					this.mookModel.recordMovement(tilesMoved);
+				}
 				break;
 			case (ActionType.EXPLORE):
 				if (this.isExploreDisabled)
 					this.handleFailure (new Abort ("Not taking turn. Mook found no targets and exploration is disabled."));
 
-				if (this.debug) console.log ("Exploring");
+				debugLog("Exploring");
 
 				if (! this._isExplorer)
 				{
 					let dialogContent = "<p>The mook could not find a target. This could be because they don't have vision on a PC or because they are outside of weapon range.</p><p>The mook can explore their environment and try to find a target. Otherwise, mookAI will return control to the user.</p>";
 
-					if (this.token.actor.hasPlayerOwner)
-						dialogContent = this.pcWarning + dialogContent;
+							if (this.token.actor.hasPlayerOwner)
+								dialogContent = this.pcWarning + dialogContent;
 
 					let dialogPromise = new Promise ((resolve, reject) => {
 						const dialog = new Dialog ({
@@ -284,28 +396,33 @@ export class Mook
 						this.handleFailure (new Abort ("Mook not exploring; out of actions."));
 					}
 
-					this._isExplorer = true;
-				}
+							this._isExplorer = true;
+						}
 
 				const exploreActions = this.mookModel.exploreActions ();
 				for (let i = 0; i < exploreActions.length; ++i)
 					this.plan.splice (i, 0, exploreActions[i]);
 				break;
 			case (ActionType.TARGET):
-				if (this.debug) console.log ("Targeting");
+				debugLog("Targeting");
 				this.target (action.data.target);
 				break;
 			case (ActionType.ATTACK):
-				if (this.debug) console.log ("Attacking!");
+				debugLog("Attacking!");
 				while (this.mookModel.canAttack) { await this.mookModel.attack (action); }
 				break;
 			case (ActionType.STEP):
-				if (this.debug) console.log ("Stepping");
-				if (! await this.step ())
+				debugLog("Stepping");
+				const stepped = await this.step();
+				if (stepped) {
+					const tilesMoved = 1; // A single step is one tile
+					this.mookModel.recordMovement(tilesMoved);
+				} else {
 					this.handleFailure (new Error ("Failed to take step"));
+				}
 				break;
 			case (ActionType.TRAVERSE):
-				if (this.debug) console.log ("Traversing");
+				debugLog("Traversing");
 
 				if (action.cost > 0)
 				{
@@ -313,48 +430,55 @@ export class Mook
 					this.utility.highlightPoints (action.data.path.path.map (s => s.origin));
 				}
 
-				let dialogContent = "<p>Take action?</p>";
+				if (!game.settings.get("mookAI", "SkipActionConfirmation")) {
+					let dialogContent = "<p>Take action?</p>";
 
-				if (this.token.actor.hasPlayerOwner)
-					dialogContent = this.pcWarning + dialogContent;
-	
-				let dialogPromise = new Promise ((resolve, reject) => {
-					const dialog = new Dialog ({
-						title: "Confirm Mook Action",
-						content: dialogContent,
-						buttons: {
-							approve: {
-								label: game.i18n.localize ("Approve"),
-								callback: () => { resolve (); }
+					if (this.token.actor.hasPlayerOwner)
+						dialogContent = this.pcWarning + dialogContent;
+
+					let dialogPromise = new Promise((resolve, reject) => {
+						const dialog = new Dialog({
+							title: "Confirm Mook Action",
+							content: dialogContent,
+							buttons: {
+								approve: {
+									label: game.i18n.localize("Approve"),
+									callback: () => { resolve(); }
+								},
+								reject: {
+									label: game.i18n.localize("Reject"),
+									callback: () => { reject(); }
+								}
 							},
-							reject: {
-								label: game.i18n.localize ("Reject"),
-								callback: () => { reject (); }
-							}
-						},
-						default: "approve",
-						close: reject
+							default: "approve",
+							close: reject
+						});
+
+						dialog.render(true);
+						dialog.position.top = 120;
+						dialog.position.left = 120;
 					});
 
-					dialog.render (true);
-					dialog.position.top = 120;
-					dialog.position.left = 120;
-				});
-
-				try {
-					await dialogPromise;
-				}
-				catch (error)
-				{
-					this.handleFailure (new Abort ("User aborted plan"));
+					try {
+						await dialogPromise;
+					}
+					catch (error) {
+						this.handleFailure(new Abort("User aborted plan"));
+					}
 				}
 
 				if (action.cost > 0)
 				{
 					this.utility.clearHighlights ();
-					if (! await this.utility.traverse (action.data.dist, this.rotationDelay, this.moveDelay))
+					const success = await this.utility.traverse (action.data.dist, this.rotationDelay, this.moveDelay);
+					if (success) {
+						const tilesMoved = action.cost;
+						this.mookModel.recordMovement(tilesMoved);
+					} else {
 						this.handleFailure (new Error ("Failed to traverse path"));
+					}
 				}
+				break;
 			}
 
 			this.time -= action.cost ? action.cost : 0;
@@ -367,7 +491,19 @@ export class Mook
 		if (this.time <= -1)
 			str = "mookAI | Planning failure: mook took too many actions.";
 
-		this.handleFailure (str);
+		//TODO handle this better but for now we want full stack trace
+		this.handleFailure (new Error (str));
+		}
+		catch (e) {
+			console.log("mookAI | Encountered unrecoverable in act():");
+			if (e instanceof Error) {
+				console.error("Error message:", e.message);
+				console.error("Error name:", e.name);
+				console.error("Error stack trace:", e.stack);
+			} else {
+				console.error("Unknown error caught:", e);
+			}
+		}
 	}
 
 	inCombat () { return this.token.inCombat; }
@@ -412,6 +548,7 @@ export class Mook
 	// Expects degrees
 	async rotate (dTheta_)
 	{
+		debugLog("Debug 24: starting rotate");
 		if (dTheta_ === null || dTheta_ === undefined || dTheta_ === NaN)
 		{
 			console.error ("mookAI | Attempted invalid rotation");
@@ -424,18 +561,27 @@ export class Mook
 
 	get viableTargets ()
 	{
+		debugLog("Debug 25: starting viableTargets");
 		let meleTargets = [];
 		let rangedTargets = [];
 
-		if (this.mookModel.hasMele)
+		if (this.mookModel.hasMele) {
 			meleTargets = this.visibleTargets.filter (e => {
-				return this.isTargetReachable (e, this.mookModel.meleRange)
+				const reachable = this.isTargetReachable (e, this.mookModel.meleRange);
+				debugLog(`Debug: Melee target ${e.name} reachable: ${reachable}`);
+				return reachable;
 			});
+			debugLog("Debug: Melee targets:", meleTargets.map(t => t.name));
+		}
 
-		if (this.mookModel.hasRanged)
+		if (this.mookModel.hasRanged) {
 			rangedTargets = this.visibleTargets.filter (e => {
-				return this.isTargetReachable (e, this.mookModel.rangedRange)
+				const reachable = this.isTargetReachable (e, this.mookModel.rangedRange);
+				debugLog(`Debug: Ranged target ${e.name} reachable: ${reachable}`);
+				return reachable;
 			});
+			debugLog("Debug: Ranged targets:", rangedTargets.map(t => t.name));
+		}
 
 		if (meleTargets.length === 0 && rangedTargets.length === 0)
 			return null;
@@ -455,12 +601,13 @@ export class Mook
 
 	async move (segment_)
 	{
+		debugLog("Debug 26: starting move");
 		if (! this.utility.isTraversable (this.segment, segment_))
 			return false;
 
 		let error = false;
 
-		await this.rotate (this.segment.radialDistToSegment (segment_, this.token.data.rotation, AngleTypes.DEG));
+		await this.rotate (this.segment.radialDistToSegment (segment_, this.tokenDoc.rotation, AngleTypes.DEG));
 		await this.tokenDoc.update ({ x: segment_.point.px, y: segment_.point.py }).catch (err => {
 			ui.notifications.warn (err);
 			error = true;
@@ -478,6 +625,7 @@ export class Mook
 
 	async step ()
 	{
+		debugLog("Debug 27: starting step");
 		const angles = this.neighborAngles.sort ((a, b) =>
 		{
 			return Math.min (a, 360 - a) - Math.min (b, 360 - b);
@@ -499,9 +647,43 @@ export class Mook
 		this.releaseControl ();
 	}
 
-	isTargetReachable (target_, attackRange_)
-	{
-		return this.pathManager.path (this.token.id, target_.id).terminalDistanceToDest <= attackRange_;
+	isTargetReachable (target_, attackRange_) {
+		debugLog("Debug: Checking if target is reachable", {
+			targetName: target_.name,
+			attackRange: attackRange_
+		});
+
+		// Get the path to the target
+		const path = this.pathManager.path(this.token.id, target_.id);
+		debugLog("Debug: Path details", {
+			pathValid: path.valid,
+			pathCost: path.cost,
+			terminalDistance: path.terminalDistanceToDest
+		});
+
+		// Calculate if target is within range
+		const isWithinRange = path.terminalDistanceToDest <= attackRange_;
+		debugLog("Debug: Range check", {
+			terminalDistance: path.terminalDistanceToDest,
+			attackRange: attackRange_,
+			isWithinRange: isWithinRange
+		});
+
+		// If target is not reachable, log why
+		if (!isWithinRange) {
+			debugLog(`Debug: Target ${target_.name} is NOT reachable - too far away`, {
+				distanceToTarget: path.terminalDistanceToDest,
+				requiredRange: attackRange_,
+				difference: path.terminalDistanceToDest - attackRange_
+			});
+		} else {
+			debugLog(`Debug: Target ${target_.name} IS reachable`, {
+				distanceToTarget: path.terminalDistanceToDest,
+				weaponRange: attackRange_
+			});
+		}
+
+		return isWithinRange;
 	}
 
 	async lockRotation ()
@@ -574,7 +756,7 @@ export class Mook
 
 	get point () { return this._segment.point; }
 
-	get rotation () { return this.token.data.rotation; }
+	get rotation () { return this.token.document.rotation; }
 
 	get rotationDelay ()
 	{
@@ -592,7 +774,7 @@ export class Mook
 	get token () { return this._token; }
 	get tokenDoc () { return game.scenes.active.tokens.get(this._token.id) }
 
-	get tokenLocked () { token.data.lockRotation; }
+	get tokenLocked () { token.system.lockRotation; }
 
 	get visibleTargets () { return this._visibleTargets; }
 }

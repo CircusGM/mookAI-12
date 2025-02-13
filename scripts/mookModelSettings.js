@@ -1,24 +1,49 @@
-import { MookTypes, getMookType } from "./behaviors.js"
+import { MookTypes, getMookType, debugLog } from "./behaviors.js"
 import { Mook } from "./mook.js";
 
 // Controls what a mook does when their are no viable targets
 export const MookInitiative = 
 {
 	// Mook ends their turn
-	DO_NOTHING: 1,
+	DO_NOTHING: 0,
 	// Mook spins in place randomly
-	ROTATE: 2,
+	ROTATE: 1,
 	// Mook moves in a line
 	// todo: Make mooks avoid walls
-	CREEP: 3,
+	CREEP: 2,
 	// Mook spins in place randomly
 	// todo: Make mooks avoid walls
-	WANDER: 4,
+	WANDER: 3,
 }
 
-function settingIndexToString (str1_, str2_)
-{
-	return game.settings.settings.get (str1_).choices[game.settings.get ("mookAI", str2_)];
+// Add a helper function to convert numeric setting to enum value
+function getMookInitiativeFromSetting(value) {
+	// Convert string to number if needed
+	const numValue = parseInt(value);
+	
+	// Find the matching enum value
+	for (const [key, val] of Object.entries(MookInitiative)) {
+		if (val === numValue) {
+			debugLog(`Debug: Converting initiative setting ${value} to ${key}`);
+			return MookInitiative[key];
+		}
+	}
+	
+	// Default to CREEP if invalid value
+	console.warn(`Invalid MookInitiative value: ${value}, defaulting to CREEP`);
+	return MookInitiative.CREEP;
+}
+
+// Deprecated / bugged?
+function settingIndexToString(settingKey, configKey) {
+	// Get the array of choices for the setting
+	const choices = game.settings.settings.get(settingKey).choices;
+	
+	// Get the current value of the setting
+	const currentValue = game.settings.get("mookAI", configKey);
+	
+	// Return the string representation of the current value
+	return choices[currentValue];
 }
 
 // todo: stack behaviors? Probability distribution?
@@ -41,7 +66,12 @@ export class MookModelSettings
 		this.useSight = game.settings.get ("mookAI", "UseVision");
 		this.rotationCost = game.settings.get ("mookAI", "RotationCost"); 
 
-		this.mookInitiative = MookInitiative[settingIndexToString ("mookAI.MookInitiative", "MookInitiative")];
+		// Get the string representation of the MookInitiative setting
+		// const initiativeString = settingIndexToString("mookAI.MookInitiative", "MookInitiative");
+		const initiativeValue = game.settings.get("mookAI", "MookInitiative");
+		debugLog("Debug: Got initiative setting", initiativeValue);
+		this.mookInitiative = getMookInitiativeFromSetting(initiativeValue);
+		debugLog("Debug: Set mookInitiative to", this.mookInitiative);
 
 		if (this.mookInitiative === MookInitiative.ROTATE && this.rotationCost === 0)
 			this.mookInitiative = MookInitiative.DO_NOTHING;
@@ -90,3 +120,4 @@ export class MookModelSettings5e extends MookModelSettings
 		this.hasDashFreeAction = false;
 	}
 };
+

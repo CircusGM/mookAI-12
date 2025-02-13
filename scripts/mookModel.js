@@ -24,6 +24,7 @@ If this is done, the module should be able to support those systems without addi
 At the moment, I am prioritizing functionality and bug fixes and have no plans to support other systems. However, if you want to implement a MookModel for the system you play, I will be happy to work with you and to review and merge in your code
 */
 import { MookModelSettings, MookModelSettings5e, MookInitiative  } from "./mookModelSettings.js"
+import { debugLog } from "./behaviors.js";
 
 /*
 Actions are objects that contain:
@@ -109,6 +110,7 @@ export class MookModel
 {
 	constructor (token_, settings_)
 	{
+		this._movedTiles = 0;
 		this.settings = settings_;
 		this._token = token_;
 
@@ -119,15 +121,24 @@ export class MookModel
 		this.zoomsRemaining = 0;
 	}
 
-	static getMookModel (token_, ...args_)
-	{
-		switch (game.system.id)
-		{
-		case ("dnd5e"):
-			return new MookModel5e (token_, new MookModelSettings5e (token_), ...args_);
+	// This static method returns the model for the token.  
+	static getMookModel(token_, ...args_) {
+		const systemId = game.system.id.toLowerCase();
+		// Get mookAI from the module's API
+		const mookAI = game.modules.get("mookAI")?.api;
+		
+		if (mookAI?.systemModels?.[systemId]) {
+			const { model, settings } = mookAI.systemModels[systemId];
+			return new model(token_, new settings(token_), ...args_);
 		}
 
-		return null;
+		// Otherwise, fallback to your default models (e.g. 5e model or generic model)
+		switch (systemId) {
+			case "dnd5e":
+				return new MookModel5e(token_, new MookModelSettings5e(token_), ...args_);
+			default:
+				throw new Error(`No valid mook model for system ${systemId}`);
+		}
 	}
 
 	// Do not override these
@@ -144,32 +155,48 @@ export class MookModel
 	}
 	senseAction () { return { actionType: ActionType.SENSE, cost: 0 }; }
 	// Reset the mook model's resources for use
-	startTurn () { this.resetResources (); this._startTurn (); }
+	startTurn () { 
+		this._movedTiles = 0; 
+		this.resetResources (); 
+		this._startTurn (); 
+	}
 	stepAction () { return { actionType: ActionType.STEP, cost: 1 }; }
 	resetResources () { this._resetResources (); }
 
 	// Override as needed
 	exploreActions ()
 	{
-		let ret = new Array ();
+		debugLog("Debug M1: Getting explore actions", {
+			mookInitiative: this.settings.mookInitiative,
+			MookInitiative: MookInitiative
+		});
 
-		switch (this.settings.mookInitiative)
-		{
+		let ret = new Array();
+
+		switch (this.settings.mookInitiative) {
 		case MookInitiative.DO_NOTHING:
-			ret.push (this.haltAction ());
+			debugLog("Debug M2: Adding halt action");
+			ret.push(this.haltAction());
 			break;
 		case MookInitiative.ROTATE:
-			ret.push (this.randomRotateAction ());
+			debugLog("Debug M3: Adding rotate action");
+			ret.push(this.randomRotateAction());
 			break;
 		case MookInitiative.CREEP:
-			ret.push (this.stepAction ());
+			debugLog("Debug M4: Adding step action");
+			ret.push(this.stepAction());
 			break;
 		case MookInitiative.WANDER:
-			ret.push (this.randomRotateAction ());
-			ret.push (this.stepAction ());
+			debugLog("Debug M5: Adding wander actions");
+			ret.push(this.randomRotateAction());
+			ret.push(this.stepAction());
 			break;
+		default:
+			console.warn("Debug M6: Unknown initiative type:", this.settings.mookInitiative);
+			ret.push(this.haltAction());
 		}
 
+		debugLog("Debug M7: Returning explore actions:", ret);
 		return ret;
 	}
 	faceAction (token_) { return { actionType: ActionType.FACE, data: token_ }; }
@@ -184,7 +211,7 @@ export class MookModel
 	_attack (action_) { throw "Game system not supported"; }
 
 	// Do not override
-	get gridDistance () { return game.scenes.active.data.gridDistance; }
+	get gridDistance () { return game.scenes.active.grid.distance; }
 	get hasMele () { return this.settings.useMele && this._hasMele; }
 	get hasRanged () { return this.settings.useRanged && this._hasRanged; }
 	get hasSight () { return this.token.hasSight; }
@@ -214,6 +241,12 @@ export class MookModel
 	getMaxHealth (token_) { throw "Game system not supported"; }
 	// Resource measuring how much a token can do on their turn. It takes one time unit for a token to move one tile
 	get time () { throw "Game system not supported"; }
+
+	// New methods for movement tracking
+	recordMovement(tiles) {
+		this._movedTiles += tiles;
+	}
+
 };
 
 class MookModel5e extends MookModel
@@ -227,17 +260,28 @@ class MookModel5e extends MookModel
 		this.bonusActionUsed = false;
 	}
 
-	async doAttack (name_)
-	{
-		if (game.modules.get("betterrolls5e")?.active)
-		{
-			BetterRolls.quickRoll (name_);
-		}
-		else
-		{
-			game.dnd5e.rollItemMacro(name_);
-		}
-	}
+    async doAttack(name_) {
+        if (game.modules.get("betterrolls5e")?.active) {
+            BetterRolls.quickRoll(name_);
+        } else {
+            const item = this.token.actor.items.getName(name_);
+            if (item) {
+                // Prepare the options for item use
+                const options = {
+                    configureDialog: false,  // Skip configuration dialog
+                    createMessage: true      // Create chat message
+                };
+				if (this.token.target) {
+                    options.targets = new Set([this.token.target]);
+                }
+
+                // Use the item (this will handle the attack roll)
+                await item.use(options);
+            } else {
+                console.warn(`mookAI | Item "${name_}" not found on actor.`);
+            }
+        }
+    }
 
 	async attack (action_)
 	{
@@ -248,7 +292,7 @@ class MookModel5e extends MookModel
 		if (! this.canAttack)
 			return;
 
-		const name = action_.data.weapon.data.name;
+		const name = action_.data.weapon.name;
 
 		this._actions.filter (a => a.type === "attack" && a.can ()).forEach (a => {
 			if (a.data.duration === "full")
@@ -359,14 +403,14 @@ class MookModel5e extends MookModel
 	get meleWeapons ()
 	{
 		return this.token.actor.itemTypes.weapon.filter (w => {
-			return w.hasAttack && w.data.data.actionType === "mwak";
+			return w.hasAttack && w.system.actionType === "mwak";
 		});
 	}
 
 	get rangedWeapons ()
 	{
 		return this.token.actor.itemTypes.weapon.filter (w => {
-			return w.hasAttack && w.data.data.actionType === "rwak";
+			return w.hasAttack && w.system.actionType === "rwak";
 		});
 	}
 
@@ -382,7 +426,7 @@ class MookModel5e extends MookModel
 
 	get meleRange ()
 	{
-		const dist = this.meleWeapon.data.data?.range?.value;
+		const dist = this.meleWeapon.system?.range?.value;
 
 		if (! dist) return this.settings.standardMeleWeaponTileRange;
 
@@ -391,7 +435,7 @@ class MookModel5e extends MookModel
 
 	get rangedRange ()
 	{
-		const dist = this.rangedWeapon.data.data?.range?.value;
+		const dist = this.rangedWeapon.system?.range?.value;
 
 		if (! dist) return this.settings.standardRangedWeaponTileRange;
 
@@ -429,11 +473,11 @@ class MookModel5e extends MookModel
 	// Get various token data
 	getCurrentHealth (token_ = this.token)
 	{
-		return token_.actor.data.data.attributes.hp.value;
+		return token_.actor.system.attributes.hp.value;
 	}
 	getMaxHealth (token_ = this.token)
 	{
-		return token_.actor.data.data.attributes.hp.max;
+		return token_.actor.system.attributes.hp.max;
 	}
 
 	get hasDashAction () { return this.settings.dashActionsPerTurn > 0; }
@@ -449,7 +493,7 @@ class MookModel5e extends MookModel
 	// todo: evaluate units
 	get time ()
 	{
-		let speed = parseInt (this.token.actor.data.data.attributes.movement.walk, 10);
+		let speed = parseInt (this.token.actor.system.attributes.movement.walk, 10);
 		
 		if (! speed)
 			speed = 30;
@@ -464,3 +508,4 @@ class MookModel5e extends MookModel
 		return this.settings.dashActionsPerTurn + this.hasDashBonusAction + this.hasDashFreeAction;
 	}
 };
+

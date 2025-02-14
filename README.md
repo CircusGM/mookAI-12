@@ -35,6 +35,12 @@ A different keybind, shift+g, moves all currently controlled tokens, regardless 
 
 ![Mooks respect vision](https://media2.giphy.com/media/ZhIknG0j4RlOa30Qsi/giphy.gif)
 
+## Supported Game Systems
+
+Dungeons and Dragons 5e is supported with just this module.
+Pathfinder 2e is supported by also installing the mookAI-PF2e module at [mookAI-pf2e](https://github.com/CircusGM/mookAI-pf2e).
+Support for other systems can be added by overriding the indicated methods in the MookModel class and registering the MookModel and MookSettings classes with mookAI. See the mookAI-pf2e module for an example.
+
 ## Notes and future plans
 Currently, only 5e is supported, but the core of mookAI is system-agnostic. Other systems can be implemented in a few hours by overriding the indicated methods in the MookModel class. MookModel5e demonstrates how this is done. Mainly, mookAI needs to be told where to find certain data (movement speed, attack range, actions per turn) and how to interpret it. I can't implement these models for every system, but I am more than happy to assist anyone who wants to adapt mookAI for the system they use.
 
@@ -42,7 +48,7 @@ mookAI provides three key bindings: [g]o, [n]ext, and [b]ack. The 'g' key activa
 
 A future update will add target and attack selection to the post-planning confirmation scene. Additionally, it will likely add a pre-planning screen where the user can change how the mook behaves, such as the number of dashes they may take, the number of attack actions they possess, and the number of attacks per action. These features are already supported for 5e, but they don't have an interface at the moment because I don't know HTML yet.
 
-mookAI has a single dependency, <a href="https://github.com/dwonderley/lib-find-the-path/">my path finding library</a>. Originally, it was part of this module, but I split it out so others could use it independently. If you would like to use it in your own module but think it needs some additional functionality, please feel free to message me, and I'll see what I can do.
+mookAI has a single dependency, <a href="https://github.com/CircusGM/lib-find-the-path-12/">my path finding library</a>. Originally, it was part of this module, but I split it out so others could use it independently. If you would like to use it in your own module but think it needs some additional functionality, please feel free to message me, and I'll see what I can do.
 
 There is a known bug where sometimes the ids of combatants in the combat tracker do not match the token ids. I haven't been able to replicate this problem with consistency. The only way I've found to fix it is to delete the token and re-add it to the combat tracker. Failing that, moving to a different combat will solve the problem. This has only happened a couple of times in months of testing.
 

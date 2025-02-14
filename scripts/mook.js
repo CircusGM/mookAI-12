@@ -1,8 +1,8 @@
 import { Behaviors, MookTypes, Target } from "./behaviors.js"
 import { ActionType, MookModel } from "./mookModel.js";
-import { PathManager } from "../../lib-find-the-path/scripts/pathManager.js";
-import { PointFactory, SquareNeighborAngles, AngleTypes } from "../../lib-find-the-path/scripts/point.js";
-import { FTPUtility } from "../../lib-find-the-path/scripts/utility.js";
+import { PathManager } from "../../lib-find-the-path-12/scripts/pathManager.js";
+import { PointFactory, SquareNeighborAngles, AngleTypes } from "../../lib-find-the-path-12/scripts/point.js";
+import { FTPUtility } from "../../lib-find-the-path-12/scripts/utility.js";
 import { debugLog } from "./behaviors.js";
 
 export class Abort extends Error
@@ -430,7 +430,7 @@ export class Mook {
 					this.utility.highlightPoints (action.data.path.path.map (s => s.origin));
 				}
 
-				if (!game.settings.get("mookAI", "SkipActionConfirmation")) {
+				if (!game.settings.get("mookAI-12", "SkipActionConfirmation")) {
 					let dialogContent = "<p>Take action?</p>";
 
 					if (this.token.actor.hasPlayerOwner)
@@ -723,13 +723,13 @@ export class Mook {
 
 	get isExploreDisabled ()
 	{
-		const ret = game.settings.get ("mookAI", "DisableExploration");
+		const ret = game.settings.get ("mookAI-12", "DisableExploration");
 		return (typeof ret === "boolean") ? ret : false;
 	}
 
 	get isExplorer ()
 	{
-		const ret = game.settings.get ("mookAI", "ExploreAutomatically");
+		const ret = game.settings.get ("mookAI-12", "ExploreAutomatically");
 		return (typeof ret === "boolean") ? ret : false;
 	}
 
@@ -739,7 +739,7 @@ export class Mook {
 
 	get moveDelay ()
 	{
-		const ret = game.settings.get ("mookAI", "MoveAnimationDelay");
+		const ret = game.settings.get ("mookAI-12", "MoveAnimationDelay");
 		if (ret < 0) return 0;
 		if (ret > 1000) return 1000;
 		return ret;
@@ -748,7 +748,7 @@ export class Mook {
 	get pathManager () { return this._pathManager; } 
 	get pathManagerConfig ()
 	{
-		this._pathManagerConfig.constrainVision = ! game.settings.get ("mookAI", "MookOmniscience");
+		this._pathManagerConfig.constrainVision = ! game.settings.get ("mookAI-12", "MookOmniscience");
 		return this._pathManagerConfig;
 	} 
 
@@ -760,7 +760,7 @@ export class Mook {
 
 	get rotationDelay ()
 	{
-		const ret = game.settings.get ("mookAI", "RotationAnimationDelay");
+		const ret = game.settings.get ("mookAI-12", "RotationAnimationDelay");
 		if (ret < 0) return 0;
 		if (ret > 1000) return 1000;
 		return ret;

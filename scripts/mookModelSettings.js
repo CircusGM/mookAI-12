@@ -40,7 +40,7 @@ function settingIndexToString(settingKey, configKey) {
 	const choices = game.settings.settings.get(settingKey).choices;
 	
 	// Get the current value of the setting
-	const currentValue = game.settings.get("mookAI", configKey);
+	const currentValue = game.settings.get("mookAI-12", configKey);
 	
 	// Return the string representation of the current value
 	return choices[currentValue];
@@ -54,21 +54,21 @@ export class MookModelSettings
 		// todo: Use the token's actor to access individualized mook settings
 		const actor = token_.actor;
 
-		this.mookType = getMookType (game.settings.get ("mookAI", "MookType"));
+		this.mookType = getMookType (game.settings.get ("mookAI-12", "MookType"));
 
 		// false indicates "do not automate this token"
 		// todo: default false when actor-level configuration is available
 		this.useAI = "true";
 
-		this.useMele = game.settings.get ("mookAI", "UseMele");
-		this.useRanged = game.settings.get ("mookAI", "UseRanged");
+		this.useMele = game.settings.get ("mookAI-12", "UseMele");
+		this.useRanged = game.settings.get ("mookAI-12", "UseRanged");
 		// false indicates that the mook can see everyone
-		this.useSight = game.settings.get ("mookAI", "UseVision");
-		this.rotationCost = game.settings.get ("mookAI", "RotationCost"); 
+		this.useSight = game.settings.get ("mookAI-12", "UseVision");
+		this.rotationCost = game.settings.get ("mookAI-12", "RotationCost"); 
 
 		// Get the string representation of the MookInitiative setting
-		// const initiativeString = settingIndexToString("mookAI.MookInitiative", "MookInitiative");
-		const initiativeValue = game.settings.get("mookAI", "MookInitiative");
+		// const initiativeString = settingIndexToString("mookAI-12.MookInitiative", "MookInitiative");
+		const initiativeValue = game.settings.get("mookAI-12", "MookInitiative");
 		debugLog("Debug: Got initiative setting", initiativeValue);
 		this.mookInitiative = getMookInitiativeFromSetting(initiativeValue);
 		debugLog("Debug: Set mookInitiative to", this.mookInitiative);
@@ -87,9 +87,9 @@ export class MookModelSettings
 		this.attackable = "true";
 
 		// The max weapon distance, in tiles, if not provided by a weapon
-		this.standardMeleWeaponTileRange = game.settings.get ("mookAI", "StandardMeleTileRange");
+		this.standardMeleWeaponTileRange = game.settings.get ("mookAI-12", "StandardMeleTileRange");
 		if (this.standardMeleWeaponTileRange < 0) this.standardMeleWeaponTileRange = 1;
-		this.standardRangedWeaponTileRange = game.settings.get ("mookAI", "StandardRangedTileRange");
+		this.standardRangedWeaponTileRange = game.settings.get ("mookAI-12", "StandardRangedTileRange");
 		if (this.standardRangedWeaponTileRange < 0) this.standardRangedWeaponTileRange = 12;
 
 		/* todo? Configure token vision from configuration page

@@ -1,25 +1,25 @@
 import { Abort, Mook } from "./mook.js"
-import { MinkowskiParameter } from "../../lib-find-the-path/scripts/point.js";
-import { FTPUtility } from "../../lib-find-the-path/scripts/utility.js";
+import { MinkowskiParameter } from "../../lib-find-the-path-12/scripts/point.js";
+import { FTPUtility } from "../../lib-find-the-path-12/scripts/utility.js";
 import { debugLog } from "./behaviors.js";
 
 let mookAI;
 
 function getDistanceMetric ()
 {
-	return MinkowskiParameter[game.settings.settings.get ("mookAI.DistanceMetric").choices[game.settings.get ("mookAI", "DistanceMetric")]];
+	return MinkowskiParameter[game.settings.settings.get ("mookAI-12.DistanceMetric").choices[game.settings.get ("mookAI-12", "DistanceMetric")]];
 }
 
 export function initAI ()
 {
 	mookAI = new MookAI ();
 
-	const mod = game.modules.get("mookAI");
+	const mod = game.modules.get("mookAI-12");
 	if (mod) {
 		mod.api = mookAI;
 	}
 
-	game.settings.register ("mookAI", "DistanceMetric", {
+	game.settings.register ("mookAI-12", "DistanceMetric", {
 		name: "Distance Metric",
 		hint: "Distance on a grid can be measured multiple ways. Manhattan treats adjacent tiles as one unit away and diagonals as two. Chebyshev treats adjacent and diagonal tiles as one unit away. PF2E uses the 1-2-1-2 diagonal movement rule.",
 		scope: "world",
@@ -29,7 +29,7 @@ export function initAI ()
 		choices: ["Chebyshev", "Euclidean", "Manhattan", "PF2E"],
 	});
 
-	game.settings.register ("mookAI", "MoveAnimationDelay", {
+	game.settings.register ("mookAI-12", "MoveAnimationDelay", {
 		name: "Move Animation Delay",
 		hint: "Controls the amount of time between mook token movements. Measured in miliseconds.",
 		scope: "world",
@@ -38,7 +38,7 @@ export function initAI ()
 		type: Number,
 	});
 
-	game.settings.register ("mookAI", "RotationAnimationDelay", {
+	game.settings.register ("mookAI-12", "RotationAnimationDelay", {
 		name: "Rotation Animation Delay",
 		hint: "Controls the max delay between mook rotation and their next movement. Varies by amount turned. Measured in miliseconds.",
 		scope: "world",
@@ -47,7 +47,7 @@ export function initAI ()
 		type: Number,
 	});
 
-	game.settings.register ("mookAI", "MookType", {
+	game.settings.register ("mookAI-12", "MookType", {
 		name: "Mook Type",
 		hint: "Controls how mooks behave. Eager Beavers attack the closest token, using range only when there are no mele targets. Shias attack a random target in range. This feature is not fully developed. Consult documentation for specifics.",
 		scope: "world",
@@ -57,7 +57,7 @@ export function initAI ()
 		choices: ["EAGER_BEAVER", "SHIA"],
 	});
 
-	game.settings.register ("mookAI", "AutoEndTurn", {
+	game.settings.register ("mookAI-12", "AutoEndTurn", {
 		name: "Automatically End Turn",
 		hint: "If enabled, mookAI will advance the combat tracker after a mook acts. Otherwise, it will not.",
 		scope: "world",
@@ -66,7 +66,7 @@ export function initAI ()
 		type: Boolean,
 	});
 
-	game.settings.register ("mookAI", "UseVision", {
+	game.settings.register ("mookAI-12", "UseVision", {
 		name: "Use Vision",
 		hint: "If enabled, mooks will only attack enemies their tokens can see. If disabled, mooks have omniscient: they have full knowledge of the location of all tokens and the optimal path around/through all obstacles (such as mazes). Make sure that token vision is enabled and configured!",
 		scope: "world",
@@ -75,7 +75,7 @@ export function initAI ()
 		type: Boolean,
 	});
 
-	game.settings.register ("mookAI", "MookOmniscience", {
+	game.settings.register ("mookAI-12", "MookOmniscience", {
 		name: "Mook Omniscience",
 		hint: "If enabled, mooks will always find the most direct path to a target, even if the path itself is obscured or otherwise hard to navigate. If disabled, the path a mook takes can only consist of tiles the mook could see before the mook started moving. For example, an omniscient mook could perfectly navigate a maze if they had vision on a target from the initial position.",
 		scope: "world",
@@ -84,7 +84,7 @@ export function initAI ()
 		type: Boolean,
 	});
 
-	game.settings.register ("mookAI", "MookInitiative", {
+	game.settings.register ("mookAI-12", "MookInitiative", {
 		name: "Mook Initiative",
 		hint: "Controls what mooks do when there is no target within range. They can do nothing, rotate in place, creep forward 1 tile at a time, or wander aimlessly (rotate + creep). If they find an enemy while \"exploring\" that is in range (after accounting for how far they have already moved), they will attack that target according to their configured behavior. In either case, they will pass their turn in combat afterward.",
 		scope: "world",
@@ -94,7 +94,7 @@ export function initAI ()
 		choices: ["DO_NOTHING", "ROTATE", "CREEP", "WANDER"],
 	});
 
-	game.settings.register ("mookAI", "DisableExploration", {
+	game.settings.register ("mookAI-12", "DisableExploration", {
 		name: "Mooks will not explore",
 		hint: "If a mook cannot find a target, mookAI will stop without ending the turn.",
 		scope: "world",
@@ -103,7 +103,7 @@ export function initAI ()
 		type: Boolean
 	});
 
-	game.settings.register ("mookAI", "DisableRotation", {
+	game.settings.register ("mookAI-12", "DisableRotation", {
 		name: "Tokens will not rotate",
 		hint: "If checked, mookAI will enable \"Lock Rotation\" in a token's settings before moving a mook. Afterward, it will return that setting to its initial value.",
 		scope: "world",
@@ -112,7 +112,7 @@ export function initAI ()
 		type: Boolean
 	});
 
-	game.settings.register ("mookAI", "ExploreAutomatically", {
+	game.settings.register ("mookAI-12", "ExploreAutomatically", {
 		name: "Mooks explore automatically",
 		hint: "If a mook cannot find a target, they will explore their environment without being directed.",
 		scope: "world",
@@ -121,7 +121,7 @@ export function initAI ()
 		type: Boolean
 	});
 
-	game.settings.register ("mookAI", "RotationCost", {
+	game.settings.register ("mookAI-12", "RotationCost", {
 		name: "Rotation Cost",
 		hint: "When exploring, mooks may end up rotating to search for heroes to die against. This setting controls how much movement, in tiles, each rotation costs. It can be set between 0.0 and 1.0 tiles unless the mook's initiative is set to \"Rotate.\" If the mook is configured to rotate, and the rotation cost is 0.0, then they will \"Do Nothing\" instead.",
 		scope: "world",
@@ -130,7 +130,7 @@ export function initAI ()
 		type: Number,
 	});
 
-	game.settings.register ("mookAI", "UseMele", {
+	game.settings.register ("mookAI-12", "UseMele", {
 		name: "Mooks may use mele attacks",
 		hint: "If enabled, mooks will check if they can make mele attacks. If disabled, they will not.",
 		scope: "world",
@@ -139,7 +139,7 @@ export function initAI ()
 		type: Boolean,
 	});
 
-	game.settings.register ("mookAI", "UseRanged", {
+	game.settings.register ("mookAI-12", "UseRanged", {
 		name: "Mooks may use ranged attacks",
 		hint: "If enabled, mooks will check if they can make ranged attacks. If disabled, they will not.",
 		scope: "world",
@@ -148,7 +148,7 @@ export function initAI ()
 		type: Boolean,
 	});
 
-	game.settings.register ("mookAI", "StandardMeleTileRange", {
+	game.settings.register ("mookAI-12", "StandardMeleTileRange", {
 		name: "Default mele weapon attack radius",
 		hint: "Some mele weapons do not provide a max range. This setting, in units of tiles, is a fallback to allow mooks to attack in such instances. Setting this value to zero will prevent mooks from attacking with a ranged weapon that has no explicit range value. They will explore instead.",
 		scope: "world",
@@ -157,7 +157,7 @@ export function initAI ()
 		type: Number,
 	});
 
-	game.settings.register ("mookAI", "StandardRangedTileRange", {
+	game.settings.register ("mookAI-12", "StandardRangedTileRange", {
 		name: "Default ranged weapon attack radius",
 		hint: "Some ranged weapons do not provide a max range. This setting, in units of tiles, is a fallback to allow mooks to attack in such instances. Setting this value to zero will prevent mooks from attacking with a ranged weapon that has no explicit range value. They will explore instead.",
 		scope: "world",
@@ -166,7 +166,7 @@ export function initAI ()
 		type: Number,
 	});
 
-	game.settings.register("mookAI", "SkipActionConfirmation", {
+	game.settings.register("mookAI-12", "SkipActionConfirmation", {
 		name: "Skip Action Confirmation",
 		hint: "If enabled, mooks will execute their actions without showing a confirmation dialog.",
 		scope: "world",
@@ -175,7 +175,7 @@ export function initAI ()
 		type: Boolean,
 	});
 
-	game.settings.register("mookAI", "AutoControlMooks", {
+	game.settings.register("mookAI-12", "AutoControlMooks", {
 		name: "Automatically Control Mooks",
 		hint: "If enabled, mookAI will automatically take control of mook turns without requiring the 'G' key press.",
 		scope: "world",
@@ -184,7 +184,7 @@ export function initAI ()
 		type: Boolean
 	});
 
-	game.settings.register("mookAI", "AutoControlLevel", {
+	game.settings.register("mookAI-12", "AutoControlLevel", {
 		name: "Auto-Control Level Limit",
 		hint: "Only automatically control mooks at or below this level. Set to 0 to control all levels.",
 		scope: "world",
@@ -198,7 +198,7 @@ export function initAI ()
 		}
 	});
 
-	game.settings.register("mookAI", "IgnoreSpellcasters", {
+	game.settings.register("mookAI-12", "IgnoreSpellcasters", {
 		name: "Ignore Spellcasters",
 		hint: "If enabled, mookAI will not automatically control creatures that can cast spells.",
 		scope: "world",
@@ -207,7 +207,7 @@ export function initAI ()
 		type: Boolean
 	});
 
-	game.settings.register("mookAI", "enableDebugConsoleMessages", {
+	game.settings.register("mookAI-12", "enableDebugConsoleMessages", {
 		name: "Enable Debug Console Messages",
 		hint: "If enabled, MookAI will output detailed debug messages to the console.",
 		scope: "world",
@@ -349,7 +349,7 @@ export class MookAI
 			game.combat.nextTurn ();
 		});
 
-		if (game.modules.get("lib-find-the-path")?.active)
+		if (game.modules.get("lib-find-the-path-12")?.active)
 		{
 			document.addEventListener('keyup', evt => {
 				if (evt.key.toLowerCase () !== 'g' || ! evt.target.classList.contains ("game") || this.busy)
@@ -645,7 +645,7 @@ export class MookAI
 		});
 	}
 
-	get autoEndTurn () { return game.settings.get ("mookAI", "AutoEndTurn"); }
+	get autoEndTurn () { return game.settings.get ("mookAI-12", "AutoEndTurn"); }
 
 	// ;)
 	get busy () { return this._busy; }
@@ -664,7 +664,7 @@ Hooks.on("updateCombat", async (combat, changed, options, userId) => {
 	}
 	
 	// Check if auto-control is enabled
-	if (!game.settings.get("mookAI", "AutoControlMooks")) {
+	if (!game.settings.get("mookAI-12", "AutoControlMooks")) {
 		debugLog("Debug: Auto-control is disabled");
 		return;
 	}
@@ -690,7 +690,7 @@ Hooks.on("updateCombat", async (combat, changed, options, userId) => {
 	}
 
 	// Check level restriction if applicable
-	const levelLimit = game.settings.get("mookAI", "AutoControlLevel");
+	const levelLimit = game.settings.get("mookAI-12", "AutoControlLevel");
 	if (levelLimit > 0) {
 		const creatureLevel = getCreatureLevel(token.actor);
 		debugLog("Debug: Checking level", creatureLevel, "against limit", levelLimit);
@@ -701,7 +701,7 @@ Hooks.on("updateCombat", async (combat, changed, options, userId) => {
 	}
 
 	// Check spellcaster restriction if applicable
-	if (game.settings.get("mookAI", "IgnoreSpellcasters")) {
+	if (game.settings.get("mookAI-12", "IgnoreSpellcasters")) {
 		if (isSpellcaster(token.actor)) {
 			debugLog("Debug: Skipping spellcaster");
 			return;

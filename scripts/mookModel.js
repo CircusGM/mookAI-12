@@ -125,7 +125,7 @@ export class MookModel
 	static getMookModel(token_, ...args_) {
 		const systemId = game.system.id.toLowerCase();
 		// Get mookAI from the module's API
-		const mookAI = game.modules.get("mookAI")?.api;
+		const mookAI = game.modules.get("mookAI-12")?.api;
 		
 		if (mookAI?.systemModels?.[systemId]) {
 			const { model, settings } = mookAI.systemModels[systemId];

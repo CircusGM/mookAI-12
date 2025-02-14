@@ -4,7 +4,7 @@
 // Added debugLog function here since this doesn't import other files
 // Top-level debug utility function available within this module
 export function debugLog(...args) {
-	if (game.settings.get("mookAI", "enableDebugConsoleMessages")) {
+	if (game.settings.get("mookAI-12", "enableDebugConsoleMessages")) {
 		console.log("mookAI | DEBUG: ", ...args);
 	}
 }

@@ -11,7 +11,7 @@
       "discord": "circusGM"
     }
   ],
-  "version": "1.0.2",
+  "version": "#{VERSION}#",
   "compatibility": {
     "minimum": "12",
     "verified": "12.331",
@@ -27,7 +27,9 @@
   },
   "esmodules": ["scripts/behaviors.js", "scripts/main.js", "scripts/mook.js", "scripts/mookAI.js", "scripts/mookModel.js", "scripts/mookModelSettings.js"],
   "styles": [],
-  "url": "https://github.com/CircusGM/mookAI-12",
-  "manifest": "https://raw.githubusercontent.com/CircusGM/mookAI-12/master/module.json",
-  "download": "https://github.com/CircusGM/mookAI-12/releases/latest/download/mookAI-12-master.zip"
+  "url": "#{URL}#",
+  "manifest": "#{MANIFEST}#",
+  "download": "#{DOWNLOAD}#",
+  "license": "LICENSE",
+  "readme": "README.md"
 }

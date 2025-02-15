@@ -33,8 +33,6 @@ export class Mook {
         debugLog("Debug 5: Creating PathManager");
         this._pathManager = new PathManager(metric_);
 
-        this._disabledRotation = false;
-
         debugLog("Debug 6: Getting MookModel");
         this._mookModel = MookModel.getMookModel(token_);
         debugLog("Debug 7: MookModel obtained", this._mookModel);
@@ -555,6 +553,12 @@ export class Mook {
 			return;
 		}
 
+		// Add check for disabled rotation
+		if (this.rotationDisabled) {
+			debugLog("Debug: Rotation disabled, skipping rotation");
+			return;
+		}
+
 		await this.tokenDoc.update ({ rotation: (this.rotation + dTheta_) % 360 });
 		await new Promise (resolve => setTimeout (resolve, this.rotationDelay));
 	}
@@ -642,9 +646,9 @@ export class Mook {
 	async endTurn ()
 	{
 		if (this.rotationDisabled)
-			await this.unlockRotation ();
+			await this.unlockRotation();
 
-		this.releaseControl ();
+		this.releaseControl();
 	}
 
 	isTargetReachable (target_, attackRange_) {
@@ -686,22 +690,34 @@ export class Mook {
 		return isWithinRange;
 	}
 
-	async lockRotation ()
-	{
-		if (this.tokenLocked === true)
-			return;
-
-		await this.tokenDoc.update ({ lockRotation: true });
-		this._disabledRotation = true;
+	get rotationDisabled() {
+		return game.settings.get("mookAI-12", "DisableRotation");
 	}
 
-	async unlockRotation ()
-	{
-		if (! this._disabledRotation)
+	async lockRotation() {
+		debugLog("Debug: lockRotation called - current lock state:", this.tokenLocked);
+		if (this.tokenLocked === true) {
+			debugLog("Debug: Token already locked, skipping");
 			return;
+		}
 
-		await this.tokenDoc.update ({ lockRotation: false });
+		debugLog("Debug: Locking token rotation");
+		await this.tokenDoc.update({ lockRotation: true });
+		this._disabledRotation = true;
+		debugLog("Debug: Token rotation locked");
+	}
+
+	async unlockRotation() {
+		debugLog("Debug: unlockRotation called - current disabled state:", this._disabledRotation);
+		if (!this._disabledRotation) {
+			debugLog("Debug: Token not manually locked, skipping");
+			return;
+		}
+
+		debugLog("Debug: Unlocking token rotation");
+		await this.tokenDoc.update({ lockRotation: false });
 		this._disabledRotation = false;
+		debugLog("Debug: Token rotation unlocked");
 	}
 
 	releaseControl () { this.token.release ({}); }
@@ -774,7 +790,9 @@ export class Mook {
 	get token () { return this._token; }
 	get tokenDoc () { return game.scenes.active.tokens.get(this._token.id) }
 
-	get tokenLocked () { token.system.lockRotation; }
+	get tokenLocked() { 
+		return this.tokenDoc.lockRotation; 
+	}
 
 	get visibleTargets () { return this._visibleTargets; }
 }

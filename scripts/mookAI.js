@@ -421,7 +421,7 @@ export class MookAI
 	combatStart (combat_)
 	{
 		debugLog("combatStart called!");
-		if (combat_.scene !== game.scenes.active.id)
+		if (combat_.scene.id !== game.scenes.active.id)
 			return;
 
 		if (this.combats.get (combat_.id))
